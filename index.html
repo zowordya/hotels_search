@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1e1e2f">
+    <title>Поиск отелей</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <div class="centered-div">
+            <label for="search">Поиск отелей</label>
+            <div class="search-container">
+                <form id="searchForm">
+                    <div class="input-wrapper">
+                        <input type="text" id="search" name="search" placeholder="Введите страну и город (например: Russia Moscow)" required>
+                    </div>
+                    <button type="submit" class="search-button">
+                        <i class="fas fa-search"></i> Поиск
+                    </button>
+                </form>
+            </div>
+        </div>
+        <div id="searchResults" class="results-container"></div>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>
