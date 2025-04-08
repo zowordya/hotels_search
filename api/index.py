@@ -1,3 +1,4 @@
 from main import app
 
-# Этот файл нужен для Vercel serverless functions
+# Необходимо для Vercel
+handler = app
