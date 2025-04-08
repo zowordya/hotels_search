@@ -54,70 +54,46 @@ async def home(request: Request):
 
 async def fetch_hotels_from_osm(country: str, city: str) -> list:
     overpass_url = "https://overpass-api.de/api/interpreter"
-    # Оптимизированный запрос
+    # Упрощенный и оптимизированный запрос
     query = f"""
-    [out:json][timeout:90];
-    area["name"~"{city}",i]["place"~"city|town"]->.searchArea;
+    [out:json][timeout:25];
+    area[name="{city}"][admin_level~"8|6"]->.a;
     (
-        way["tourism"="hotel"](area.searchArea);
-        node["tourism"="hotel"](area.searchArea);
-        way["building"="hotel"](area.searchArea);
-        node["building"="hotel"](area.searchArea);
+        nwr["tourism"="hotel"]["name"](area.a);
+        nwr["building"="hotel"]["name"](area.a);
     );
     out body center qt;
     """
     
     try:
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            try:
-                response = await client.post(overpass_url, data={"data": query})
+        timeout = httpx.Timeout(30.0, connect=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(overpass_url, 
+                                       data={"data": query},
+                                       headers={'User-Agent': 'Hotels Search/1.0'})
+            
+            if response.status_code == 429:
+                return []  # При превышении лимита возвращаем пустой список
                 
-                if response.status_code == 429:
-                    print("Rate limit hit, waiting...")
-                    await asyncio.sleep(5)
-                    response = await client.post(overpass_url, data={"data": query})
-                
-                response.raise_for_status()
-                data = response.json()
-                
-                if not data.get("elements"):
-                    # Пробуем альтернативный запрос без area
-                    alt_query = f"""
-                    [out:json][timeout:90];
-                    (
-                        way["tourism"="hotel"]["name"~".",i](area:{city});
-                        node["tourism"="hotel"]["name"~".",i](area:{city});
-                    );
-                    out body center qt;
-                    """
-                    response = await client.post(overpass_url, data={"data": alt_query})
-                    response.raise_for_status()
-                    data = response.json()
-                
-                hotels = []
-                for element in data.get("elements", []):
-                    tags = element.get("tags", {})
-                    if "name" in tags:
-                        hotel = {
-                            "name": tags.get("name", ""),
-                            "address": tags.get("addr:street", "") + " " + tags.get("addr:housenumber", ""),
-                            "stars": tags.get("stars", "Нет данных"),
-                            "phone": tags.get("phone", tags.get("contact:phone", "Нет данных")),
-                            "website": tags.get("website", tags.get("contact:website", "")),
-                            "booking_url": tags.get("booking:url", tags.get("contact:booking", ""))
-                        }
-                        if not hotel["address"].strip():
-                            hotel["address"] = tags.get("addr:full", city)
-                        hotels.append(hotel)
-                
-                return hotels
-                
-            except httpx.TimeoutException:
-                print("Timeout error")
+            if not response.is_success:
                 return []
-            except httpx.RequestError as e:
-                print(f"Request error: {e}")
-                return []
+                
+            data = response.json()
+            hotels = []
+            
+            for element in data.get("elements", [])[:20]:  # Ограничиваем количество результатов
+                tags = element.get("tags", {})
+                if "name" in tags:
+                    hotels.append({
+                        "name": tags.get("name", ""),
+                        "address": tags.get("addr:street", "") or city,
+                        "stars": tags.get("stars", "Нет данных"),
+                        "phone": tags.get("phone", "Нет данных"),
+                        "website": tags.get("website", ""),
+                        "booking_url": tags.get("booking:url", "")
+                    })
+            
+            return hotels[:10]  # Возвращаем только первые 10 отелей
                 
     except Exception as e:
         print(f"Error in fetch_hotels_from_osm: {str(e)}")
@@ -135,23 +111,8 @@ async def search(country: str = None, city: str = None):
         country = country.strip().lower()
         city = city.strip().lower()
         
-        print(f"Searching for hotels in {city}, {country}")
-        
         hotels = await fetch_hotels_from_osm(country, city)
         
-        if not hotels:
-            # Пробуем поиск только по городу
-            hotels = await fetch_hotels_from_osm("", city)
-        
-        if not hotels:
-            return JSONResponse(
-                status_code=404,
-                content={
-                    "message": f"Отели в городе {city.title()} не найдены",
-                    "hotels": []
-                }
-            )
-
         return {
             "city": city.title(),
             "country": country.title(),
@@ -162,7 +123,7 @@ async def search(country: str = None, city: str = None):
         print(f"Error in search: {str(e)}")
         return JSONResponse(
             status_code=500,
-            content={"message": "Ошибка сервера при поиске отелей"}
+            content={"message": f"Ошибка сервера при поиске отелей: {str(e)}"}
         )
 
 if __name__ == "__main__":
