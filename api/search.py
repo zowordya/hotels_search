@@ -1,7 +1,7 @@
-from http.client import HTTPResponse
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 import httpx
+import asyncio
 
 app = FastAPI()
 
@@ -14,23 +14,23 @@ async def search(country: str = None, city: str = None):
         )
 
     try:
-        # Простой запрос для тестирования
+        # Упрощенный запрос для Vercel
         query = f"""
-        [out:json][timeout:25];
-        area[name="{city}"]->.searchArea;
+        [out:json][timeout:15];
+        area[name="{city}"]->.a;
         (
-          node["tourism"="hotel"](area.searchArea);
-          way["tourism"="hotel"](area.searchArea);
+            node["tourism"="hotel"]["name"](area.a);
+            way["tourism"="hotel"]["name"](area.a);
         );
-        out body;
+        out body center;
         """
         
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(15.0)) as client:
             response = await client.post(
                 "https://overpass-api.de/api/interpreter",
                 data={"data": query},
                 headers={
-                    'User-Agent': 'Hotel Search Bot/1.0',
+                    'User-Agent': 'HotelSearch/1.0',
                     'Accept': 'application/json'
                 }
             )
@@ -39,21 +39,17 @@ async def search(country: str = None, city: str = None):
                 data = response.json()
                 hotels = []
                 
-                for element in data.get("elements", [])[:5]:  # Ограничиваем до 5 отелей для теста
+                for element in data.get("elements", [])[:5]:
                     tags = element.get("tags", {})
                     if "name" in tags:
                         hotels.append({
                             "name": tags.get("name", ""),
-                            "address": tags.get("addr:street", ""),
+                            "address": tags.get("addr:street", "") or city,
                             "website": tags.get("website", ""),
-                            "stars": "Нет данных",
+                            "stars": tags.get("stars", "Нет данных")
                         })
                 
-                return {
-                    "city": city,
-                    "country": country,
-                    "hotels": hotels
-                }
+                return {"hotels": hotels}
             
             return JSONResponse(
                 status_code=404,
@@ -61,8 +57,9 @@ async def search(country: str = None, city: str = None):
             )
 
     except Exception as e:
-        print(f"Error: {str(e)}")
         return JSONResponse(
             status_code=500,
-            content={"message": "Ошибка сервера"}
+            content={"message": str(e)}
         )
+
+handler = app
