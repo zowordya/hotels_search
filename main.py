@@ -54,13 +54,15 @@ async def home(request: Request):
 
 async def fetch_hotels_from_osm(country: str, city: str) -> list:
     overpass_url = "https://overpass-api.de/api/interpreter"
-    # Упрощенный и оптимизированный запрос
+    # Модифицированный запрос для поиска по нескольким вариантам названий
     query = f"""
     [out:json][timeout:25];
-    area[name="{city}"][admin_level~"8|6"]->.a;
+    area["name"~"^{city}$|^{city.title()}$|^{city.upper()}$",i]["place"~"city|town|village"]->.searchArea;
     (
-        nwr["tourism"="hotel"]["name"](area.a);
-        nwr["building"="hotel"]["name"](area.a);
+        way["tourism"="hotel"](area.searchArea);
+        node["tourism"="hotel"](area.searchArea);
+        way["building"="hotel"](area.searchArea);
+        node["building"="hotel"](area.searchArea);
     );
     out body center qt;
     """
@@ -70,30 +72,64 @@ async def fetch_hotels_from_osm(country: str, city: str) -> list:
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(overpass_url, 
                                        data={"data": query},
-                                       headers={'User-Agent': 'Hotels Search/1.0'})
+                                       headers={
+                                           'User-Agent': 'Hotels Search/1.0',
+                                           'Accept-Language': 'en,pt'
+                                       })
             
-            if response.status_code == 429:
-                return []  # При превышении лимита возвращаем пустой список
-                
             if not response.is_success:
-                return []
+                # Пробуем альтернативный запрос для интернациональных названий
+                alt_query = f"""
+                [out:json][timeout:25];
+                area["name:en"~"{city}",i]["place"~"city|town"]->.searchArea;
+                (
+                    nwr["tourism"="hotel"](area.searchArea);
+                    nwr["building"="hotel"](area.searchArea);
+                );
+                out body center qt;
+                """
+                response = await client.post(overpass_url, 
+                                           data={"data": alt_query},
+                                           headers={
+                                               'User-Agent': 'Hotels Search/1.0',
+                                               'Accept-Language': 'en,pt'
+                                           })
+            
+            if response.is_success:
+                data = response.json()
+                hotels = []
                 
-            data = response.json()
-            hotels = []
+                for element in data.get("elements", [])[:20]:
+                    tags = element.get("tags", {})
+                    if "name" in tags:
+                        name = tags.get("name")
+                        # Проверяем различные варианты адреса
+                        address = (tags.get("addr:street", "") + " " + tags.get("addr:housenumber", "")).strip()
+                        if not address:
+                            address = tags.get("addr:full", "") or tags.get("address", "") or city
+                        
+                        hotel = {
+                            "name": name,
+                            "address": address,
+                            "stars": tags.get("stars", "Нет данных"),
+                            "phone": tags.get("phone", tags.get("contact:phone", "Нет данных")),
+                            "website": (
+                                tags.get("website", "") or 
+                                tags.get("contact:website", "") or 
+                                tags.get("url", "")
+                            ),
+                            "booking_url": (
+                                tags.get("booking:url", "") or 
+                                tags.get("contact:booking", "") or 
+                                tags.get("url:booking", "")
+                            )
+                        }
+                        if any([hotel["website"], hotel["address"]]):  # Добавляем только если есть хотя бы сайт или адрес
+                            hotels.append(hotel)
+                
+                return hotels[:10]
             
-            for element in data.get("elements", [])[:20]:  # Ограничиваем количество результатов
-                tags = element.get("tags", {})
-                if "name" in tags:
-                    hotels.append({
-                        "name": tags.get("name", ""),
-                        "address": tags.get("addr:street", "") or city,
-                        "stars": tags.get("stars", "Нет данных"),
-                        "phone": tags.get("phone", "Нет данных"),
-                        "website": tags.get("website", ""),
-                        "booking_url": tags.get("booking:url", "")
-                    })
-            
-            return hotels[:10]  # Возвращаем только первые 10 отелей
+            return []
                 
     except Exception as e:
         print(f"Error in fetch_hotels_from_osm: {str(e)}")
