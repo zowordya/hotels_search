@@ -6,18 +6,10 @@
       "use": "@vercel/python"
     }
   ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "api/index.py"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
-    }
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.py" },
+    { "source": "/(.*)", "destination": "/$1" }
   ],
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/search" }],
-  "regions": ["cdg1"],
   "headers": [
     {
       "source": "/api/(.*)",
