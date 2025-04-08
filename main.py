@@ -150,4 +150,4 @@ async def search(country: str = None, city: str = None):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app)  # Убираем host и port для совместимости с Vercel

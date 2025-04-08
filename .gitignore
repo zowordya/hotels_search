@@ -4,9 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
-venv/
-.env
 build/
 develop-eggs/
 dist/
@@ -18,9 +15,16 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# Виртуальное окружение
+venv/
+env/
+ENV/
+.env
 
 # База данных
 *.db
@@ -32,24 +36,24 @@ var/
 .vscode/
 *.swp
 *.swo
-*.swn
-.DS_Store
-.vs
+.vs/
+*.sublime-workspace
+*.sublime-project
 
 # Логи и временные файлы
 *.log
+logs/
 *.tmp
 .coverage
 htmlcov/
 .tox/
 .nox/
 .pytest_cache/
+.mypy_cache/
 
-# Локальные настройки
-config.local.py
-settings.local.py
+# Vercel
+.vercel
 
-# Node (если будете использовать npm/yarn)
-node_modules/
-package-lock.json
-yarn.lock
+# Системные файлы
+.DS_Store
+Thumbs.db

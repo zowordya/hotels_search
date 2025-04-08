@@ -1,3 +1,3 @@
 from main import app
 
-# Этот файл нужен для Vercel
+# Этот файл нужен для Vercel serverless functions
